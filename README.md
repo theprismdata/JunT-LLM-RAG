@@ -1,4 +1,6 @@
 # 윈도우 노트북에서 RAG 실행해 보기!
+동영상 데모
+https://www.youtube.com/@HONGJOONG-SHIN
 
 ### 사전 준비
 #### OpenSearch and Dashboard Docker Compose
