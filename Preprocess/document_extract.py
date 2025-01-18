@@ -370,8 +370,7 @@ class TextExtract:
         f_extension = f_extension.lower()
 
         if f_extension.endswith('.pdf'):
-            # formed_clear_contents, doc_meta = self.get_context_pdffile_by_plumber(file_path)
-            formed_clear_contents, doc_meta = self.get_contexttable_pdffile_by_plumber(file_path)
+            _, doc_meta = self.get_contexttable_pdffile_by_plumber(file_path)
             self.preprocess_meta.append({'origin_path':file_path,
                                         'doc_meta':doc_meta})
 
@@ -423,9 +422,8 @@ class TextExtract:
             if filepath.is_file():
                 sfile_path = str(filepath)
                 if sfile_path.endswith(types):
-                    _, contents, status = self.extract_file_content(sfile_path)
-                    if status == "ok":
-                        print(contents)
+                    print(f"In process {sfile_path}")
+                    self.extract_file_content(sfile_path)
 
         with open('../metadump.json', "w", encoding='utf-8') as fp:
             fp.write(json.dumps(self.preprocess_meta, ensure_ascii=False))
