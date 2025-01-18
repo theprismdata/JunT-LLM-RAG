@@ -26,19 +26,21 @@ def get_msword_content(file_path):
     current_page = 1
     line_number = 1
     doc_meta = []
+    whole_page_extractinfo = ''
     for paragraph in doc.paragraphs:
         # 페이지 나누기 확인
         if paragraph._element.xpath('.//w:lastRenderedPageBreak'):
             current_page += 1
         line_meta = []
         text_list = paragraph.text.split("\n")
-        if len(text_list) > 0:
+        if len(text_list) > 0:  # 빈 줄 제외
             for text in text_list:
+                whole_page_extractinfo += text + '\n'
                 line_meta.append({"ln": line_number, "content": text})
                 line_number += 1
-        doc_meta.append({"page":current_page,
-                         "line_meta": line_meta})
-    return doc_meta
+        doc_meta.append({"page": current_page,
+                            "line_meta": line_meta})
+    return whole_page_extractinfo, doc_meta
 
 
 def save_to_text(extracted_content, output_file):
@@ -62,9 +64,9 @@ if __name__ == "__main__":
         for filepath in pathlib.Path("../source_doc/").rglob('*.docx'):
             print(filepath)
             if filepath.is_file():
-                content = get_msword_content(filepath)
+                formed_clear_contents, doc_meta  = get_msword_content(filepath)
                 files_meta.append({"origin_path": str(filepath),
-                                   "doc_meta": content})
+                                   "doc_meta": doc_meta})
 
         save_to_text(files_meta, output_file)
         print(f"문서 내용이 성공적으로 추출되어 {output_file}에 저장되었습니다.")
