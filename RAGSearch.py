@@ -1,13 +1,14 @@
 import argparse
+import os
 import sys
 
-from langchain_community.chat_message_histories import RedisChatMessageHistory
 from langchain_core.output_parsers import StrOutputParser
 from typing import Iterator
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.llms import Ollama
-from langchain_core.runnables import RunnableWithMessageHistory
-from opensearchengine import OpenSearchEmbeddingStore
+from sentence_transformers import SentenceTransformer
+
+from vectorstore.opensearchengine import OpenSearchEmbeddingStore
 
 store = OpenSearchEmbeddingStore()
 
@@ -26,10 +27,17 @@ if __name__ == '__main__' :
     args = parser.parse_args()
     store = OpenSearchEmbeddingStore()
 
+    # if os.path.exists('./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS') == False:
+    #     hugging_cmd = 'huggingface-cli download snunlp/KR-SBERT-V40K-klueNLI-augSTS --local-dir ./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/'
+    #     os.system(hugging_cmd)
+    embedding_model = SentenceTransformer('./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/')
+
     print(f'질문 : ', args.query)
     query = args.query
+    embedding_vector = embedding_model.encode(query)
+    index_name = "doc_embedding"
+    results = store.search_similar(index_name=index_name, vector=embedding_vector)
 
-    results = store.search_similar(query)
     search_text = ''
     for hit in results:
         search_text += hit['_source']['content']
@@ -67,8 +75,8 @@ if __name__ == '__main__' :
 
     print("\n****세부 자료****")
     for hit in results[:3]:
-        print(f"텍스트: {hit['_source']['content']}")
+        print(f"텍스트: {hit['_source']['text']}")
         print(f"원본 파일: {hit['_source']['source_path']}")
-        print(f"위치 페이지: {hit['_source']['meta']['page']}")
-        print(f"위치 줄번호: {hit['_source']['meta']['ln']}")
+        print(f"위치 페이지: {hit['_source']['meta']['page_number']}")
+        print(f"위치 줄번호: {hit['_source']['meta']['start_line']}")
         print(f"점수: {hit['_score']}")

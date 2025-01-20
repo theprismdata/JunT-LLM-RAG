@@ -1,8 +1,11 @@
 .venv/
 config/
 .idea/
-doc_embedding/embeddingmodel/
+doc_embedding/embeddingmodel/*
 metadump.json
 HF_Models/
 *.pyc
+*.docx
+*.hwp
 .ipynb_checkpoints/
+embeddingmodel/

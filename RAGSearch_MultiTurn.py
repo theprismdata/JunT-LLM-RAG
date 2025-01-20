@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 
 from langchain_community.chat_message_histories import RedisChatMessageHistory
@@ -7,7 +8,9 @@ from typing import Iterator
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_community.llms import Ollama
 from langchain_core.runnables import RunnableWithMessageHistory
-from opensearchengine import OpenSearchEmbeddingStore
+from sentence_transformers import SentenceTransformer
+
+from vectorstore.opensearchengine import OpenSearchEmbeddingStore
 
 session_id = "user_123"
 REDIS_URL = "redis://localhost:6379"
@@ -39,13 +42,20 @@ if __name__ == '__main__' :
     args = parser.parse_args()
     store = OpenSearchEmbeddingStore()
 
+    # if os.path.exists('../embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS') == False:
+    #     hugging_cmd = 'huggingface-cli download snunlp/KR-SBERT-V40K-klueNLI-augSTS --local-dir ../embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/'
+    #     os.system(hugging_cmd)
+    embedding_model = SentenceTransformer('./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/')
+
     print(f'질문 : ', args.query)
     query = args.query
+    embedding_vector = embedding_model.encode(query)
+    index_name = "doc_embedding"
+    results = store.search_similar(index_name=index_name, vector=embedding_vector)
 
-    results = store.search_similar(query)
     search_text = ''
     for hit in results:
-        search_text += hit['_source']['content']
+        search_text += hit['_source']['text']
 
     print("Call LLM")
     system_message = """너는 보고서를 제공하는 챗봇이야. \n나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘. \n 답변은 한국어로 해야되"""
@@ -82,15 +92,11 @@ if __name__ == '__main__' :
     config = {"configurable": {"session_id": session_id}}
     response = chain_with_history.invoke({"question": query, "related_info": search_text}, config = config)
     print(response)
-    # process_stream_output(chain.stream({
-    #     "user_input": query,
-    #     "related_info": search_text
-    # }))
 
     print("\n****세부 자료****")
     for hit in results[:3]:
-        print(f"텍스트: {hit['_source']['content']}")
-        print(f"원본 파일: {hit['_source']['meta']['source']}")
-        print(f"위치 페이지: {hit['_source']['meta']['page']}")
-        print(f"위치 줄번호: {hit['_source']['meta']['ln']}")
+        print(f"텍스트: {hit['_source']['text']}")
+        print(f"원본 파일: {hit['_source']['source_path']}")
+        print(f"위치 페이지: {hit['_source']['meta']['page_number']}")
+        print(f"위치 줄번호: {hit['_source']['meta']['start_line']}")
         print(f"점수: {hit['_score']}")

@@ -13,21 +13,15 @@ class OpenSearchEmbeddingStore:
             connection_class=RequestsHttpConnection
         )
 
-    def create_index(self, index_name='doc_embedding', recreate=False):
+    def create_index(self, index_name='doc_embedding', reindex=False):
         self.index_name = index_name
-
         try:
             # 인덱스 설정
             settings = {
-                "settings": {
-                    "index": {
-                        "knn": True,
-                        "knn.algo_param.ef_search": 100
-                    }
-                },
+                "settings": { "index": { "knn": True, "knn.algo_param.ef_search": 100}},
                 "mappings": {
                     "properties": {
-                        "content": {"type": "text"},
+                        "text": {"type": "text"},
                         "source_path": {"type": "keyword"},
                          "embedding_vector": {
                             "type": "knn_vector",
@@ -41,9 +35,7 @@ class OpenSearchEmbeddingStore:
                     }
                 }
             }
-
-            # 인덱스 삭제하고 생성
-            if recreate == True:
+            if reindex == True:
                 if self.client.indices.exists(self.index_name):
                     self.client.indices.delete(self.index_name)
                 response = self.client.indices.create(
@@ -57,6 +49,27 @@ class OpenSearchEmbeddingStore:
         except Exception as e:
             print(f"Error creating index: {e}")
             return -1
+
+    def store_embedding(self, sourcefile, text, metadata=None):
+        embedding = self.get_embedding(text)
+        document = {
+            'text': text,
+            'source_path': sourcefile,
+            'meta': metadata,
+            'embedding_vector': embedding
+        }
+        response = self.client.index(
+            index=self.index_name,
+            body=document
+        )
+        return response
+
+    def store_doc(self, document: dict):
+        response = self.client.index(
+            index=self.index_name,
+            body=document
+        )
+        return response
 
     def get_embedding(self, text):
         embedding_vct = self.embedding_model.encode(text)
@@ -78,44 +91,21 @@ class OpenSearchEmbeddingStore:
         print(f"삭제된 문서 수: {response['deleted']}")
         return response['deleted']
 
-
-    def store_embedding(self, sourcefile, text, metadata=None):
-        embedding = self.get_embedding(text)
-        document = {
-            'content': text,
-            'embedding_vector': embedding,
-            'source_path': sourcefile,
-            'meta': metadata
-        }
-        response = self.client.index(
-            index=self.index_name,
-            body=document
-        )
-        return response
-
-    def store_doc(self, index: str, document: dict):
-        response = self.client.index(
-            index=self.index,
-            body=document
-        )
-        return response
-
-    def search_similar(self, query_text, top_k=5):
+    def search_similar(self, index_name, vector, top_k=5):
         """유사한 텍스트 검색"""
-        query_embedding = self.get_embedding(query_text)
         try:
             query = {
                 "query": {
                     "knn": {
                         "embedding_vector": {
-                            "vector": query_embedding,
+                            "vector": vector,
                             "k": top_k
                         }
                     }
                 }
             }
             response = self.client.search(
-                index=self.index_name,
+                index=index_name,
                 body=query
             )
             return response['hits']['hits']
