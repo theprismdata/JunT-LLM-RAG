@@ -1,16 +1,10 @@
 """This script extract text from various format document to make llm fine tunning training data
 """
 import argparse
-import glob
 import json
 import pprint
-import re
-import os
 import pathlib
-import sys
-from os.path import basename
 
-import yaml
 import pandas as pd
 import pdfplumber
 from langchain.document_loaders import TextLoader
@@ -21,7 +15,7 @@ from docx.oxml.text.paragraph import CT_P
 from docx.oxml.table import CT_Tbl
 from docx.table import _Cell, Table, _Row
 from docx.text.paragraph import Paragraph
-from HwpParser import HWPExtractor
+from Preprocess.HwpParser import HWPExtractor
 
 class TextExtract:
     """
@@ -180,104 +174,6 @@ class TextExtract:
                     })
         return None, result
 
-    # def get_context_pdffile_by_plumber(self, source_file_name:str)-> list:
-    #     """
-    #     get context from pdf file
-    #     :param source_file_name: source pdf file path
-    #     :return: extracted context text
-    #     """
-    #     print(f"Source path {source_file_name}")
-    #     try:
-    #         pdfplumb = pdfplumber.open(source_file_name)
-    #         whole_page_extractinfo = ""
-    #         page_exist_tbl = False
-    #     except IOError as e:
-    #         print(f"I/O error({e.errno}): {e.strerror}")
-    #         return None
-    #
-    #     isSkeep = False
-    #     doc_meta = []
-    #     for page_num, _ in enumerate(pdfplumb.pages):
-    #         page_plumb_contents = {}
-    #         table_list = []
-    #
-    #         if self.cvt_image == True:
-    #             pil_img = pdfplumb.pages[page_num].to_image(resolution=1200)
-    #             pil_img.save(f'{source_file_name}-{page_num}.png',"PNG", quantize=False)
-    #
-    #         try:
-    #             for table_info in pdfplumb.pages[page_num].find_tables():
-    #                 x0 = table_info.bbox[0]
-    #                 y0 = table_info.bbox[1]
-    #                 x1 = table_info.bbox[2]
-    #                 y1 = table_info.bbox[3]
-    #                 table_list.append((x0, y0, x1, y1))
-    #                 table = table_info.extract()
-    #                 df = pd.DataFrame(table[1::], columns=table[0])
-    #                 df.replace('\x00', '', inplace=True)
-    #                 df.replace('Ÿ', '*', inplace=True)
-    #                 page_plumb_contents[int(y0)] = {"type":"table",
-    #                                                 "value": df.to_markdown()}
-    #         except Exception as e:
-    #             print(e)
-    #             continue
-    #
-    #         line_meta = []
-    #         try:
-    #             for ln, content in enumerate(pdfplumb.pages[page_num].extract_text_lines()):
-    #                 txt_content = content['text']
-    #                 x0 = content['x0']
-    #                 y0 = content['top']
-    #                 x1 = content['x1']
-    #                 y1 = content['bottom']
-    #                 try:
-    #                     if len(table_list) > 0:
-    #                         if (table_list[0][0] < x0 and table_list[0][1] < y0 and
-    #                                 table_list[0][2] > x1 and table_list[0][3] > y1):#Filter context in outbound detected table contents
-    #                             pass
-    #                         else:
-    #                             page_plumb_contents[int(y0)] = {"type": "text", "value": txt_content}
-    #                             line_meta.append({"ln": ln+1,
-    #                                        "context": txt_content})
-    #                     else:
-    #                         page_plumb_contents[int(y0)] = {"type": "text", "value": txt_content}
-    #                         line_meta.append({"ln": ln + 1,
-    #                                           "context": txt_content})
-    #                 except Exception as e:
-    #                     print(str(e))
-    #         except Exception as e:
-    #             print(e)
-    #             continue
-    #         if len(line_meta) > 0:
-    #             page_meta = {"page": page_num + 1, "line_meta":line_meta}
-    #
-    #         if len(page_plumb_contents) > 0:
-    #             #각 페이지 단위 콘텐츠 결합
-    #             pos_list = list(page_plumb_contents.keys())
-    #             pos_list = sorted(pos_list)
-    #             page_exist_tbl = False
-    #             page_textonly_filtering = ""
-    #             for position in pos_list:
-    #                 if page_plumb_contents[position]["type"] == "table":
-    #                     if self.del_table == False:
-    #                         page_textonly_filtering = re.sub(r"(?<![\.\?\!])\n", " ", page_textonly_filtering)
-    #                         whole_page_extractinfo += page_textonly_filtering + "\n" + page_plumb_contents[position]["value"] + "\n"
-    #
-    #                     page_textonly_filtering = ""
-    #                     page_exist_tbl = True
-    #                 else:
-    #                     page_textonly_filtering += page_plumb_contents[position]["value"] + "\n"
-    #
-    #             if page_exist_tbl is False:
-    #                 page_textonly_filtering = re.sub(r"(?<![\.\?\!])\n", " ", page_textonly_filtering)
-    #                 whole_page_extractinfo += page_textonly_filtering
-    #         # print(f"Page Number : {page_num} : {whole_page_extractinfo}")
-    #         if len(line_meta) > 0:
-    #             doc_meta.append(page_meta)
-    #
-    #     whole_page_extractinfo = re.sub(r"\(cid:[0-9]+\)", "", whole_page_extractinfo)
-    #     print('Go Next document')
-    #     return whole_page_extractinfo, doc_meta
 
     def iter_doc_blocks(self, parent):
         """

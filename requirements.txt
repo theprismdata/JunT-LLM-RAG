@@ -11,8 +11,10 @@ opensearch-py==2.8.0
 sentence-transformers==3.3.1
 ollama==0.4.5
 redis==5.2.1
+beautifulsoup4
 jupyter==1.1.1
 notebook==7.3.2
+html5lib
 langchain-experimental==0.3.4
 #huggingface-hub==0.27.1
 #datasets==3.2.0

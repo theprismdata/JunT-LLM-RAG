@@ -61,7 +61,7 @@ if __name__ == "__main__":
 
     try:
         files_meta = []
-        for filepath in pathlib.Path("../source_doc/").rglob('*.docx'):
+        for filepath in pathlib.Path("source_doc/").rglob('*.docx'):
             print(filepath)
             if filepath.is_file():
                 formed_clear_contents, doc_meta  = get_msword_content(filepath)
