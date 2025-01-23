@@ -23,7 +23,7 @@ class TextExtract:
     """
     Document extration main class
     """
-    def __init__(self, bucket_name=None):
+    def __init__(self):
         self.del_table = True
         self.cvt_image = False
 
@@ -321,13 +321,11 @@ class TextExtract:
             print(f"Error: {e}")
             return False
 
-    def extract_from_src_doc(self, path: str):
+    def extract_from_src_doc(self, folder_path: str, ext: str):
         """
         extract contents from all object in target bucket
         :return:
         """
-        # types = ('.pdf', '.docx')
-        types = ('.pdf')
         src_meta_path = '../meta_dumps'
         if os.path.exists(src_meta_path) == False:
             os.makedirs(src_meta_path, exist_ok=True)
@@ -335,33 +333,25 @@ class TextExtract:
         origin_file_list = []
         for metafile in pathlib.Path(src_meta_path).rglob("*.json"):
             with open(metafile, "r", encoding="utf-8") as file:
-                print(metafile)
+                print(metafile, "check")
                 file_info = json.load(file)
                 orgin_file = file_info['origin_path']
                 origin_file_list.append(orgin_file)
-
-        for idx, filepath in enumerate(pathlib.Path(path).rglob('*.*')):
-            if filepath.is_file():
-                sfile_path = str(filepath)
-                if sfile_path.endswith(types):
-                    if sfile_path in origin_file_list: continue
-                    print(f"In process {sfile_path}")
-                    if self.is_pdf(sfile_path) == False: continue
-
-                    self.extract_file_content(sfile_path)
+        idx = 0
+        for root, dirs, files in os.walk(folder_path):
+            for file in files:
+                if file.lower().endswith(ext):
+                    filepath = os.path.abspath(os.path.join(root, file))
+                    print(f"In process {filepath}")
+                    self.extract_file_content(filepath)
                     with open(f'../meta_dumps/{idx}_metadump.json', "w", encoding='utf-8') as fp:
                         if self.preprocess_meta is not None:
                             fp.write(json.dumps(self.preprocess_meta, ensure_ascii=False))
                         else:
-                            fp.write(json.dumps({"origin_path": sfile_path,
+                            fp.write(json.dumps({"origin_path": filepath,
                                                       "status":"Error"},
                                                       ensure_ascii=False))
-
-    def dump_data(self, meta_path):
-        for metafile in pathlib.Path(meta_path).rglob("*.json"):
-            with open(metafile, "r", encoding="utf-8") as file:
-                file_info = json.load(file)
-                pprint.pprint(file_info)
+                    idx += 1
 
 te = TextExtract()
 te.del_table = True
@@ -371,6 +361,6 @@ parser.add_argument('-input', help='추출할 파일이 있는 경로를 넣어�
 args = parser.parse_args()
 if __name__ == '__main__' :
     print(f'추출 대상 경로: ', args.input)
-    te.extract_from_src_doc(path=args.input)
-    te.dump_data("../meta_dumps")
+    extensions = (".pdf")
+    te.extract_from_src_doc(folder_path=args.input, ext=extensions)
 
