@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 import sys
 from sentence_transformers import SentenceTransformer
 from vectorstore.opensearchengine import OpenSearchEmbeddingStore
@@ -26,10 +27,11 @@ if __name__ == "__main__":
 
     index_name = "doc_embedding"
     store.create_index(index_name=index_name, reindex=True)
+    meta_path = "../meta_dumps"
 
-    with open("../metadump.json", "r", encoding="utf-8") as file:
-        file_info_list = json.load(file)
-        for file_info in file_info_list:
+    for input_file in pathlib.Path(meta_path).rglob("*.json"):
+        with open(input_file, "r", encoding="utf-8") as file:
+            file_info = json.load(file)
             print(file_info['origin_path'])
             sourcefile = file_info['origin_path']
             doc_meta = file_info['doc_meta']
