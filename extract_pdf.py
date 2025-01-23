@@ -187,23 +187,41 @@ class TextExtract:
                     filepath = os.path.abspath(os.path.join(root, file))
                     print(f"In process {filepath}")
                     
-                    _, infor_meta = self.get_contexttable_pdffile_by_plumber(filepath)
-                    
-                    if infor_meta is not None:
-                        preprocess_meta = {'origin_path':filepath,
-                                            'doc_meta':infor_meta['doc_meta']}
-                    else:
-                        preprocess_meta = None
-                
-                    with open(f'meta_dumps/{idx}_metadump.json', "w", encoding='utf-8') as fp:
-                        if self.preprocess_meta is not None:
-                            fp.write(json.dumps(preprocess_meta, ensure_ascii=False))
+                    with open(filepath, 'rb') as f:
+                        header = f.read(4)
+                        if header[:4] == b'%PDF':
+                            _, infor_meta = self.get_contexttable_pdffile_by_plumber(filepath)
+                            
+                            if infor_meta is not None:
+                                preprocess_meta = {'origin_path':filepath,
+                                                    'doc_meta':infor_meta['doc_meta']}
+                            else:
+                                preprocess_meta = None
+                        
+                            with open(f'meta_dumps/{idx}_metadump.json', "w", encoding='utf-8') as fp:
+                                if self.preprocess_meta is not None:
+                                    fp.write(json.dumps(preprocess_meta, ensure_ascii=False))
+                                else:
+                                    fp.write(json.dumps({"origin_path": filepath,
+                                                            "status":"Error"},
+                                                            ensure_ascii=False))
+                            idx += 1
                         else:
-                            fp.write(json.dumps({"origin_path": filepath,
-                                                      "status":"Error"},
-                                                      ensure_ascii=False))
-                    idx += 1
-
+                            print("No pdf format")
+                            
+    def do_aggregate(self, folder_path: str):
+        for metafile in pathlib.Path(folder_path).rglob("*.json"):
+            with open(metafile, "r", encoding="utf-8") as file:
+                print(metafile, "check")
+                file_info = json.load(file)
+                print(file_info['origin_path'])
+                if 'status' in list(file_info.keys()):
+                    continue
+                context = ''
+                for meta_infos in file_info['doc_meta']:
+                    context += meta_infos['context']
+                    print(context)
+        
 parser = argparse.ArgumentParser()
 parser.add_argument('-input', help='추출할 파일이 있는 경로를 넣어주세요')
 args = parser.parse_args()
@@ -211,4 +229,5 @@ if __name__ == '__main__' :
     print(f'추출 대상 경로: ', args.input)
     te = TextExtract()
     extensions = (".pdf")
-    te.extract_from_src_doc(folder_path=args.input, ext=extensions)
+    # te.extract_from_src_doc(folder_path=args.input, ext=extensions)
+    te.do_aggregate(folder_path="./meta_dumps")
