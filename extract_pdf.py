@@ -1,11 +1,13 @@
 import argparse
 import os
 import pathlib
+import pprint
 import pdfplumber
 import json
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+# from langchain.text_splitter import RecursiveCharacterTextSplitter
 import pandas as pd
-
+import nltk
+from langchain.text_splitter import NLTKTextSplitter
 class TextExtract:
     """
     Document extration main class
@@ -32,7 +34,7 @@ class TextExtract:
         result = {
             "doc_meta": [],
         }
-
+        temp_all_contents = "" #전체 콘텐츠 일관성 확인용
         with pdfplumber.open(source_file_name) as pdf:
             for page_num, page in enumerate(pdf.pages, 1):
                 # 페이지의 모든 요소를 담을 리스트
@@ -86,11 +88,12 @@ class TextExtract:
                             if line_text.strip():  # 빈 라인 제외
                                 page_elements.append({
                                     'type': 'text',
-                                    'context': f"{line_text}",
+                                    'context': line_text,
                                     'y_center': current_y,
                                     'page': page_num,
                                     'line': current_line_number
                                 })
+                                temp_all_contents += line_text +'\n'
                                 current_line_number += 1
                         current_line = [word['text']]
                         current_y = word_y_center
@@ -101,12 +104,12 @@ class TextExtract:
                     if line_text.strip():
                         page_elements.append({
                             'type': 'text',
-                            'context': f"{line_text}",
+                            'context': line_text,
                             'y_center': current_y,
                             'page': page_num,
                             'line': current_line_number
                         })
-
+                        temp_all_contents += line_text +'\n'
                 # y 위치에 따라 요소들을 정렬
                 page_elements.sort(key=lambda x: x['y_center'])
 
@@ -129,10 +132,10 @@ class TextExtract:
                             "context": current_text,
                             "line_pos": fist_end_page_line_num
                         })
+                        temp_all_contents += current_text+'\n'
                         current_text = ""
                         current_text_elements = []
                     else:  # 테이블인 경우
-                        # 남은 텍스트가 있으면 먼저 처리
                         if current_text:
                             result["doc_meta"].append({
                                 "type": "text",
@@ -140,6 +143,7 @@ class TextExtract:
                                 "context": current_text,
                                 "line_pos": fist_end_page_line_num
                             })
+                            temp_all_contents += current_text
                             current_text = ""
                             current_text_elements = []
 
@@ -150,6 +154,7 @@ class TextExtract:
                             "table_number": element['table_number'],
                             "context": element['context']
                         })
+                        temp_all_contents += element['context']+'\n'
 
                 # 페이지의 마지막 텍스트 처리
                 if current_text:
@@ -161,7 +166,15 @@ class TextExtract:
                         "context": current_text,
                         "line_pos": fist_end_page_line_num
                     })
-        return None, result
+                    temp_all_contents += current_text +'\n'
+                    
+            nltk_text_splitter = NLTKTextSplitter(
+                                chunk_size=200,
+                                length_function=len
+                            )
+            chunks = nltk_text_splitter.split_text(temp_all_contents)
+            print("총 청크 수:", len(chunks))
+        return None, result, chunks
 
     def extract_from_src_doc(self, folder_path: str, ext: str):
         """
@@ -190,17 +203,21 @@ class TextExtract:
                     with open(filepath, 'rb') as f:
                         header = f.read(4)
                         if header[:4] == b'%PDF':
-                            _, infor_meta = self.get_contexttable_pdffile_by_plumber(filepath)
+                            _, infor_meta, chunks = self.get_contexttable_pdffile_by_plumber(filepath)
                             
+                            if len(chunks) < 2:
+                                infor_meta = None
+                                
                             if infor_meta is not None:
                                 preprocess_meta = {'origin_path':filepath,
-                                                    'doc_meta':infor_meta['doc_meta']}
+                                                    'doc_meta':infor_meta['doc_meta'],
+                                                    'lenchunk': len(chunks)}
                             else:
                                 preprocess_meta = None
                         
                             with open(f'meta_dumps/{idx}_metadump.json', "w", encoding='utf-8') as fp:
-                                if self.preprocess_meta is not None:
-                                    fp.write(json.dumps(preprocess_meta, ensure_ascii=False))
+                                if preprocess_meta is not None:
+                                    fp.write(json.dumps(preprocess_meta, ensure_ascii=False,indent=2))
                                 else:
                                     fp.write(json.dumps({"origin_path": filepath,
                                                             "status":"Error"},
@@ -221,6 +238,22 @@ class TextExtract:
                 for meta_infos in file_info['doc_meta']:
                     context += meta_infos['context']
                     print(context)
+    
+    def preview_dump(self, file_path):
+        with open(file_path, "r", encoding="utf-8") as file:
+            file_info = json.load(file)
+            if 'status' in list(file_info.keys()):
+                return
+            context = ''
+            print("*************************************")
+            print(f"FILE NAME {file_info['origin_path']}")
+            print("*************************************")
+            for meta_infos in file_info['doc_meta']:
+                if meta_infos['type'] == 'text':
+                    context += meta_infos['context']
+            print(context)
+     
+            
         
 parser = argparse.ArgumentParser()
 parser.add_argument('-input', help='추출할 파일이 있는 경로를 넣어주세요')
@@ -229,5 +262,6 @@ if __name__ == '__main__' :
     print(f'추출 대상 경로: ', args.input)
     te = TextExtract()
     extensions = (".pdf")
-    # te.extract_from_src_doc(folder_path=args.input, ext=extensions)
-    te.do_aggregate(folder_path="./meta_dumps")
+    te.extract_from_src_doc(folder_path=args.input, ext=extensions)
+    
+    # te.preview_dump(file_path="./meta_dumps/21_metadump.json")

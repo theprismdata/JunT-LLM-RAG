@@ -14,7 +14,10 @@ redis==5.2.1
 beautifulsoup4
 jupyter==1.1.1
 notebook==7.3.2
-html5lib
+html5lib==1.1
+nltk==3.9.1
+datasets==3.2.0
+langchain-ollama==0.2.2
 langchain-experimental==0.3.4
 #huggingface-hub==0.27.1
 #datasets==3.2.0
