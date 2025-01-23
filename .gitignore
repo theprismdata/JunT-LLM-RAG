@@ -9,3 +9,4 @@ HF_Models/
 *.hwp
 .ipynb_checkpoints/
 embeddingmodel/
+meta_dumps/

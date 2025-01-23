@@ -2,8 +2,10 @@
 """
 import argparse
 import json
+import os
 import pprint
 import pathlib
+import re
 
 import pandas as pd
 import pdfplumber
@@ -15,7 +17,7 @@ from docx.oxml.text.paragraph import CT_P
 from docx.oxml.table import CT_Tbl
 from docx.table import _Cell, Table, _Row
 from docx.text.paragraph import Paragraph
-from Preprocess.HwpParser import HWPExtractor
+from HwpParser import HWPExtractor
 
 class TextExtract:
     """
@@ -24,7 +26,6 @@ class TextExtract:
     def __init__(self, bucket_name=None):
         self.del_table = True
         self.cvt_image = False
-        self.preprocess_meta = []
 
     def is_inside_any_table(self, word_bbox, tables):
         """단어가 테이블 내부에 있는지 확인"""
@@ -43,108 +44,97 @@ class TextExtract:
         result = {
             "doc_meta": [],
         }
+        try:
+            with pdfplumber.open(source_file_name) as pdf:
+                for page_num, page in enumerate(pdf.pages, 1):
+                    # 페이지의 모든 요소를 담을 리스트
+                    page_elements = []
 
-        with pdfplumber.open(source_file_name) as pdf:
-            for page_num, page in enumerate(pdf.pages, 1):
-                # 페이지의 모든 요소를 담을 리스트
-                page_elements = []
+                    # 테이블 찾기
+                    tables = page.find_tables()
 
-                # 테이블 찾기
-                tables = page.find_tables()
+                    # 테이블 처리
+                    for table_num, table in enumerate(tables, 1):
+                        df = pd.DataFrame(table.extract())
+                        if len(df) > 0:  # 빈 테이블 제외
+                            df.columns = df.iloc[0]
+                            df = df.iloc[1:]
+                            markdown_table = df.to_markdown(index=False)
 
-                # 테이블 처리
-                for table_num, table in enumerate(tables, 1):
-                    df = pd.DataFrame(table.extract())
-                    if len(df) > 0:  # 빈 테이블 제외
-                        df.columns = df.iloc[0]
-                        df = df.iloc[1:]
-                        markdown_table = df.to_markdown(index=False)
+                            # 테이블의 중심 y 좌표 계산
+                            y_center = (table.bbox[1] + table.bbox[3]) / 2
 
-                        # 테이블의 중심 y 좌표 계산
-                        y_center = (table.bbox[1] + table.bbox[3]) / 2
+                            page_elements.append({
+                                'type': 'table',
+                                'context': markdown_table,
+                                'y_center': y_center,
+                                'page': page_num,
+                                'table_number': table_num,
+                                'bbox': table.bbox
+                            })
 
-                        page_elements.append({
-                            'type': 'table',
-                            'context': markdown_table,
-                            'y_center': y_center,
-                            'page': page_num,
-                            'table_number': table_num,
-                            'bbox': table.bbox
-                        })
+                    # 텍스트 추출 (테이블 영역 제외)
+                    words = page.extract_words(keep_blank_chars=True, x_tolerance=3, y_tolerance=3)
 
-                # 텍스트 추출 (테이블 영역 제외)
-                words = page.extract_words(keep_blank_chars=True, x_tolerance=3, y_tolerance=3)
+                    # 테이블 영역 외의 단어들만 모으기
+                    current_line = []
+                    current_line_number = 1
+                    current_y = None
 
-                # 테이블 영역 외의 단어들만 모으기
-                current_line = []
-                current_line_number = 1
-                current_y = None
+                    for word in words:
+                        word_bbox = (word['x0'], word['top'], word['x1'], word['bottom'])
+                        if self.is_inside_any_table(word_bbox, tables):
+                            continue
+                        word_y_center = (word['top'] + word['bottom']) / 2
+                        if current_y is None:
+                            current_y = word_y_center
 
-                for word in words:
-                    word_bbox = (word['x0'], word['top'], word['x1'], word['bottom'])
-                    if self.is_inside_any_table(word_bbox, tables):
-                        continue
-                    word_y_center = (word['top'] + word['bottom']) / 2
-                    if current_y is None:
-                        current_y = word_y_center
+                        if abs(word_y_center - current_y) < 5:
+                            current_line.append(word['text'])
+                        else:
+                            # 새로운 라인 시작
+                            if current_line:
+                                line_text = " ".join(current_line)
+                                if line_text.strip():  # 빈 라인 제외
+                                    page_elements.append({
+                                        'type': 'text',
+                                        'context': f"{line_text}",
+                                        'y_center': current_y,
+                                        'page': page_num,
+                                        'line': current_line_number
+                                    })
+                                    current_line_number += 1
+                            current_line = [word['text']]
+                            current_y = word_y_center
 
-                    if abs(word_y_center - current_y) < 5:
-                        current_line.append(word['text'])
-                    else:
-                        # 새로운 라인 시작
-                        if current_line:
-                            line_text = " ".join(current_line)
-                            if line_text.strip():  # 빈 라인 제외
-                                page_elements.append({
-                                    'type': 'text',
-                                    'context': f"{line_text}",
-                                    'y_center': current_y,
-                                    'page': page_num,
-                                    'line': current_line_number
-                                })
-                                current_line_number += 1
-                        current_line = [word['text']]
-                        current_y = word_y_center
+                    # 마지막 라인 처리
+                    if current_line:
+                        line_text = " ".join(current_line)
+                        if line_text.strip():
+                            page_elements.append({
+                                'type': 'text',
+                                'context': f"{line_text}",
+                                'y_center': current_y,
+                                'page': page_num,
+                                'line': current_line_number
+                            })
 
-                # 마지막 라인 처리
-                if current_line:
-                    line_text = " ".join(current_line)
-                    if line_text.strip():
-                        page_elements.append({
-                            'type': 'text',
-                            'context': f"{line_text}",
-                            'y_center': current_y,
-                            'page': page_num,
-                            'line': current_line_number
-                        })
+                    # y 위치에 따라 요소들을 정렬
+                    page_elements.sort(key=lambda x: x['y_center'])
 
-                # y 위치에 따라 요소들을 정렬
-                page_elements.sort(key=lambda x: x['y_center'])
+                    # 텍스트 요소들을 청크로 분할하며 결과에 추가
+                    current_text = ""
+                    current_text_elements = []
 
-                # 텍스트 요소들을 청크로 분할하며 결과에 추가
-                current_text = ""
-                current_text_elements = []
-
-                for element in page_elements:
-                    if element['type'] == 'text':
-                        current_text += element['context'] + "\n"
-                        current_text_elements.append({
-                            'page': element['page'],
-                            'line': element['line']
-                        })
-                        start_ln = current_text_elements[0]['line']
-                        fist_end_page_line_num = {'start_line': start_ln}
-                        result["doc_meta"].append({
-                            "type": "text",
-                            "page": page_num,
-                            "context": current_text,
-                            "line_pos": fist_end_page_line_num
-                        })
-                        current_text = ""
-                        current_text_elements = []
-                    else:  # 테이블인 경우
-                        # 남은 텍스트가 있으면 먼저 처리
-                        if current_text:
+                    for element in page_elements:
+                        if element['type'] == 'text':
+                            current_text += element['context'] + "\n"
+                            current_text_elements.append({
+                                'page': element['page'],
+                                'line': element['line']
+                            })
+                            start_ln = current_text_elements[0]['line']
+                            fist_end_page_line_num = {'start_line': start_ln}
                             result["doc_meta"].append({
                                 "type": "text",
                                 "page": page_num,
@@ -153,26 +143,41 @@ class TextExtract:
                             })
                             current_text = ""
                             current_text_elements = []
+                        else:  # 테이블인 경우
+                            # 남은 텍스트가 있으면 먼저 처리
+                            if current_text:
+                                result["doc_meta"].append({
+                                    "type": "text",
+                                    "page": page_num,
+                                    "context": current_text,
+                                    "line_pos": fist_end_page_line_num
+                                })
+                                current_text = ""
+                                current_text_elements = []
 
-                        # 테이블 추가
-                        result["doc_meta"].append({
-                            "type": "table",
-                            "page": element['page'],
-                            "table_number": element['table_number'],
-                            "context": element['context']
+                            # 테이블 추가
+                            result["doc_meta"].append({
+                                "type": "table",
+                                "page": element['page'],
+                                "table_number": element['table_number'],
+                                "context": element['context']
+                            })
+
+                    # 페이지의 마지막 텍스트 처리
+                    if current_text:
+                        start_ln = current_text_elements[0]['line']
+                        fist_end_page_line_num = {'start_line': start_ln}
+                        result["context"].append({
+                            "type": "text",
+                            "page": page_num,
+                            "context": current_text,
+                            "line_pos": fist_end_page_line_num
                         })
-
-                # 페이지의 마지막 텍스트 처리
-                if current_text:
-                    start_ln = current_text_elements[0]['line']
-                    fist_end_page_line_num = {'start_line': start_ln}
-                    result["context"].append({
-                        "type": "text",
-                        "page": page_num,
-                        "context": current_text,
-                        "line_pos": fist_end_page_line_num
-                    })
-        return None, result
+                return None, result
+        except Exception as e:
+            print(str(e))
+            print("No next doc")
+            return None, None
 
 
     def iter_doc_blocks(self, parent):
@@ -248,6 +253,8 @@ class TextExtract:
                         pptx_contents += run.text + '\r\n'
         return pptx_contents
 
+
+
     def extract_file_content(self, file_path):
         """
         extraction contents from various file format
@@ -260,8 +267,11 @@ class TextExtract:
 
         if f_extension.endswith('.pdf'):
             _, infor_meta = self.get_contexttable_pdffile_by_plumber(file_path)
-            self.preprocess_meta.append({'origin_path':file_path,
-                                        'doc_meta':infor_meta['doc_meta']})
+            if infor_meta is not None:
+                self.preprocess_meta = {'origin_path':file_path,
+                                            'doc_meta':infor_meta['doc_meta']}
+            else:
+                self.preprocess_meta = None
 
         elif f_extension.endswith('.hwp'):
             hwp_obj = HWPExtractor(file_path)
@@ -301,29 +311,58 @@ class TextExtract:
             print(file_path)
         return 1, formed_clear_contents, "ok"
 
+    def is_pdf(self, file_path):
+        # PDF 파일은 '%PDF-' 로 시작합니다
+        try:
+            with open(file_path, 'rb') as file:
+                header = file.read(5)
+                return header.startswith(b'%PDF-')
+        except Exception as e:
+            print(f"Error: {e}")
+            return False
+
     def extract_from_src_doc(self, path: str):
         """
         extract contents from all object in target bucket
         :return:
         """
-        types = ('.pdf', '.docx')
-        # types = ('.pdf')
-        for filepath in pathlib.Path(path).rglob('*.*'):
+        # types = ('.pdf', '.docx')
+        types = ('.pdf')
+        src_meta_path = '../meta_dumps'
+        if os.path.exists(src_meta_path) == False:
+            os.makedirs(src_meta_path, exist_ok=True)
+
+        origin_file_list = []
+        for metafile in pathlib.Path(src_meta_path).rglob("*.json"):
+            with open(metafile, "r", encoding="utf-8") as file:
+                print(metafile)
+                file_info = json.load(file)
+                orgin_file = file_info['origin_path']
+                origin_file_list.append(orgin_file)
+
+        for idx, filepath in enumerate(pathlib.Path(path).rglob('*.*')):
             if filepath.is_file():
                 sfile_path = str(filepath)
                 if sfile_path.endswith(types):
+                    if sfile_path in origin_file_list: continue
                     print(f"In process {sfile_path}")
+                    if self.is_pdf(sfile_path) == False: continue
+
                     self.extract_file_content(sfile_path)
+                    with open(f'../meta_dumps/{idx}_metadump.json', "w", encoding='utf-8') as fp:
+                        if self.preprocess_meta is not None:
+                            fp.write(json.dumps(self.preprocess_meta, ensure_ascii=False))
+                        else:
+                            fp.write(json.dumps({"origin_path": sfile_path,
+                                                      "status":"Error"},
+                                                      ensure_ascii=False))
 
-        with open('../metadump.json', "w", encoding='utf-8') as fp:
-            fp.write(json.dumps(self.preprocess_meta, ensure_ascii=False))
+    def dump_data(self, meta_path):
+        for metafile in pathlib.Path(meta_path).rglob("*.json"):
+            with open(metafile, "r", encoding="utf-8") as file:
+                file_info = json.load(file)
+                pprint.pprint(file_info)
 
-    def dump_data(self, file_path):
-        with open(file_path, "r", encoding="utf-8") as file:
-            file_info_list = json.load(file)
-            for file_info in file_info_list:
-                print(file_info['origin_path'])
-                pprint.pprint(file_info['doc_meta'])
 te = TextExtract()
 te.del_table = True
 
@@ -332,6 +371,6 @@ parser.add_argument('-input', help='추출할 파일이 있는 경로를 넣어�
 args = parser.parse_args()
 if __name__ == '__main__' :
     print(f'추출 대상 경로: ', args.input)
-    te.extract_from_src_doc(path= args.input)
-    te.dump_data("../metadump.json")
+    te.extract_from_src_doc(path=args.input)
+    te.dump_data("../meta_dumps")
 

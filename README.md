@@ -61,6 +61,8 @@ document_extract.py 스크립트를 실행
 ```commandline
 cd .\Preprocess\
 python .\document_extract.py -input ../source_doc
+python .\document_extract.py -input F:\DC_NextCloud\03_DC_RnD_LAB
+
 ``` 
 
 ###  데이터 임베딩

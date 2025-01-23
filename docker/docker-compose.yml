@@ -20,12 +20,12 @@ services:
         soft: 65536  # maximum number of open files for the OpenSearch user, set to at least 65536 on modern systems
         hard: 65536
     volumes:
-      - /c/Temp/opensearch:/usr/share/opensearch/data
+      - /F/docker-volume/opensearch:/usr/share/opensearch/data
     ports:
       - 9200:9200
       - 9600:9600  # required for Performance Analyzer
     networks:
-      - opensearch-net
+      - llm-rag
   opensearch-dashboards:
     image: opensearchproject/opensearch-dashboards:latest
     container_name: opensearch-dashboards
@@ -36,10 +36,7 @@ services:
     environment:
       OPENSEARCH_HOSTS: '["https://opensearch-node1:9200"]'
     networks:
-      - opensearch-net
-
-volumes:
-  opensearch-data1:
+      - llm-rag
 
 networks:
-  opensearch-net:
+  llm-rag:
