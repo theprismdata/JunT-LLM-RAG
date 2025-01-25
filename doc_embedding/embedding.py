@@ -3,15 +3,14 @@ import os
 import pathlib
 import sys
 from sentence_transformers import SentenceTransformer
+sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from vectorstore.opensearchengine import OpenSearchEmbeddingStore
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
-
-if os.path.exists('../embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS') == False:
+if os.path.exists('embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS') == False:
     hugging_cmd = 'huggingface-cli download snunlp/KR-SBERT-V40K-klueNLI-augSTS --local-dir ./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/'
     os.system(hugging_cmd)
-embedding_model = SentenceTransformer('../embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/')
+embedding_model = SentenceTransformer('embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/')
 
 
 if __name__ == "__main__":
@@ -41,7 +40,6 @@ if __name__ == "__main__":
                 print(f"Page {pn}")
                 if meta_type == 'text':
                     start_line = meta_info['line_pos']['start_line']
-                    # end_line = meta_info['line_pos']['end_line']
                     context =  meta_info['context']
                     chunks = text_splitter.split_text(context)
                     print(f"Chunk Len {len(chunks)}")
@@ -67,7 +65,6 @@ if __name__ == "__main__":
                         'meta': {
                             "page_number": pn,
                             "start_line": start_line,
-                            # "end_line": end_line
                         },
                         'embedding_vector': embedding_vector
                     }

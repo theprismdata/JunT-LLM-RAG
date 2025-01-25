@@ -10,4 +10,6 @@ HF_Models/
 .ipynb_checkpoints/
 embeddingmodel/
 meta_dumps/
+meta_aggregate/
+fine_tunning_raw/
 .vscode/
