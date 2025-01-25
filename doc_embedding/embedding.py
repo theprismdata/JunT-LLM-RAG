@@ -33,6 +33,8 @@ if __name__ == "__main__":
             file_info = json.load(file)
             print(file_info['origin_path'])
             sourcefile = file_info['origin_path']
+            if 'doc_meta' not in file_info:
+                continue
             doc_meta = file_info['doc_meta']
             for meta_info in doc_meta:
                 meta_type = meta_info['type']
