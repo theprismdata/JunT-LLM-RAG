@@ -21,8 +21,8 @@ class OpenSearchEmbeddingStore:
                 "settings": { "index": { "knn": True, "knn.algo_param.ef_search": 100}},
                 "mappings": {
                     "properties": {
-                        "text": {"type": "text"},
-                        "source_path": {"type": "keyword"},
+                         "text": {"type": "text"},
+                         "source_path": {"type": "text"},
                          "embedding_vector": {
                             "type": "knn_vector",
                             "dimension": 768,
@@ -74,6 +74,26 @@ class OpenSearchEmbeddingStore:
     def get_embedding(self, text):
         embedding_vct = self.embedding_model.encode(text)
         return embedding_vct
+    
+    def check_duplicate(self, sourcefile, text):
+        """주어진 source_path와 text가 일치하는 문서가 있는지 검사"""
+        query = {
+            "query": {
+                "bool": {
+                    "must": [
+                        {"term": {"source_path": sourcefile}},
+                        {"match": {"text": text}}
+                    ]
+                }
+            }
+        }
+
+        response = self.client.search(
+            index=self.index_name,
+            body=query
+        )
+        
+        return len(response['hits']['hits']) > 0
 
     def drop_doc(self, sourcefile):
         query = {

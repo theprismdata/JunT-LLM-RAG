@@ -9,7 +9,7 @@ Dashboard와 Opensearch 계정은 admin / juntPass123! 로 설정하였습니다
 
 ```
 set OPENSEARCH_INITIAL_ADMIN_PASSWORD=juntPass123!
-docker-compose -f docker\docker-compose.yml up
+docker-compose -f docker\docker-compose.yml up -d
 ```
 
 접속 테스트

@@ -13,3 +13,5 @@ meta_dumps/
 meta_aggregate/
 fine_tunning_raw/
 .vscode/
+qaset/
+doc_embedding/write.log.txt

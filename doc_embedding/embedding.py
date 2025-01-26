@@ -2,15 +2,17 @@ import json
 import os
 import pathlib
 import sys
+
 from sentence_transformers import SentenceTransformer
 sys.path.append(os.path.dirname(os.path.abspath(os.path.dirname(__file__))))
 from vectorstore.opensearchengine import OpenSearchEmbeddingStore
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-if os.path.exists('embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS') == False:
+
+if os.path.exists('../embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS') == False:
     hugging_cmd = 'huggingface-cli download snunlp/KR-SBERT-V40K-klueNLI-augSTS --local-dir ./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/'
     os.system(hugging_cmd)
-embedding_model = SentenceTransformer('embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/')
+embedding_model = SentenceTransformer('../embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/')
 
 
 if __name__ == "__main__":
@@ -25,13 +27,27 @@ if __name__ == "__main__":
     store = OpenSearchEmbeddingStore(id='admin', password='juntPass123!')
 
     index_name = "doc_embedding"
-    store.create_index(index_name=index_name, reindex=True)
-    meta_path = "../meta_dumps"
+    store.create_index(index_name=index_name, reindex=False)
 
+    rlist = []
+    rlog_fp = open("write.log.txt", 'r')
+    while True:
+        rfilename = rlog_fp.readline()
+        if not rfilename: break
+        rfilename = rfilename.strip()
+        rlist.append(rfilename)
+    rlog_fp.close()
+
+    meta_path = "../meta_dumps"
     for input_file in pathlib.Path(meta_path).rglob("*.json"):
-        with open(input_file, "r", encoding="utf-8") as file:
-            file_info = json.load(file)
-            print(file_info['origin_path'])
+        print(input_file)
+        if str(input_file) in rlist:
+            continue
+
+        wlog_fp = open("write.log.txt", 'a')
+        with open(input_file, "r", encoding="utf-8") as fp:
+            file_info = json.load(fp)
+            # print(file_info['origin_path'])
             sourcefile = file_info['origin_path']
             if 'doc_meta' not in file_info:
                 continue
@@ -39,14 +55,13 @@ if __name__ == "__main__":
             for meta_info in doc_meta:
                 meta_type = meta_info['type']
                 pn = meta_info['page']
-                print(f"Page {pn}")
+                # print(f"Page {pn}")
                 if meta_type == 'text':
                     start_line = meta_info['line_pos']['start_line']
                     context =  meta_info['context']
                     chunks = text_splitter.split_text(context)
-                    print(f"Chunk Len {len(chunks)}")
                     for chunk in chunks:
-                        print("\n", chunk)
+                        # print("\n", chunk)
                         embedding_vector = embedding_model.encode(chunk)
                         document = {
                             'text': context,
@@ -70,7 +85,14 @@ if __name__ == "__main__":
                         },
                         'embedding_vector': embedding_vector
                     }
-                store.store_doc(document)
+                try:
+                    if store.check_duplicate(sourcefile=sourcefile, text=context) == False:
+                        store.store_doc(document)
+                except Exception as e:
+                    print(str(e))
+        wlog_fp.write(f"\n{input_file}\n")
+        wlog_fp.close()
+
 
     # # 데이터를 검색합니다.
     # query = "AI와 신경망에 대해 알려주세요"
