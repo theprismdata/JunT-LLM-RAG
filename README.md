@@ -7,6 +7,15 @@ https://www.youtube.com/@HONGJOONG-SHIN
 Opensearch는 Single Node로 작동합니다.
 Dashboard와 Opensearch 계정은 admin / juntPass123! 로 설정하였습니다.
 
+docker memory 설정
+```commandline
+wsl -d docker-desktop
+
+sysctl -w vm.max_map_count=262144
+
+exit
+```
+
 ```
 set OPENSEARCH_INITIAL_ADMIN_PASSWORD=juntPass123!
 docker-compose -f docker\docker-compose.yml up -d
