@@ -12,9 +12,10 @@ from sentence_transformers import SentenceTransformer
 from vectorstore.opensearchengine import OpenSearchEmbeddingStore
 
 # Redis 설정
-session_id = "user_2"
+session_id = "aicode_digger_chat1"
 REDIS_URL = "redis://localhost:6379"
 chat_history = RedisChatMessageHistory(session_id=session_id, url=REDIS_URL)
+chat_history.clear()
 
 def process_stream_output(stream_output: Iterator[str]) -> None:
     """Stream output processor"""
@@ -39,7 +40,7 @@ def initialize_models():
             model="gemma2:2b",
             base_url="http://localhost:11434",
             callbacks=[],
-            temperature=0.7,
+            temperature=0.9,
         )
     except Exception as e:
         print(f"Error connecting to Ollama server: {e}")
@@ -59,10 +60,11 @@ def main():
     # 모델 초기화
     embedding_model, llm = initialize_models()
 
-    system_message = """너는 보고서를 제공하는 챗봇이야.
-    나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘.
-    이전 대화 내용을 잘 참고해서 일관성 있게 답변해줘.
-    답변은 한국어로 해야 돼."""
+    system_message = """
+    너는 보고서를 제공하는 챗봇이야.
+    나의 질문에 대해 "Relevant Information"을 이용하여 답변을 한국어로 자세하게 작성해줘.
+    이전 대화 내용있으면 참고해서 일관성 있게 답변해줘.
+    한국어로만 답변해야되."""
 
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_message),
