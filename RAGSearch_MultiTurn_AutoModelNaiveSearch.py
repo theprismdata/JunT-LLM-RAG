@@ -13,10 +13,14 @@ from vectorstore.opensearchengine import OpenSearchEmbeddingStore
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
 from transformers import pipeline
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_community.vectorstores import OpenSearchVectorSearch
+
 # Redis 설정
-session_id = "user_2"
+session_id = "aicode_digger_chat1"
 REDIS_URL = "redis://localhost:6379"
 chat_history = RedisChatMessageHistory(session_id=session_id, url=REDIS_URL)
+chat_history.clear()
 
 # Model ID 설정
 model_id = "google/gemma-2b-it"
@@ -39,7 +43,11 @@ def initialize_models():
         hugging_cmd = f'huggingface-cli download {model_name} --local-dir ./embeddingmodel/{model_name}'
         os.system(hugging_cmd)
 
-    embedding_model = SentenceTransformer(f'./embeddingmodel/{model_name}/')
+    # embedding_model = SentenceTransformer(f'./embeddingmodel/{model_name}/')
+    embedding_model = HuggingFaceEmbeddings(
+        model_name=f'./embeddingmodel/{model_name}/',
+        model_kwargs={'device': 'cpu'}
+    )
     try:
         model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=model_path)
         tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=model_path)
@@ -64,12 +72,10 @@ def main():
     parser.add_argument('-query', help='질문을 해주세요')
     args = parser.parse_args()
 
-    # 벡터 스토어 초기화
-    store = OpenSearchEmbeddingStore()
-
     # 모델 초기화
     embedding_model, llm = initialize_models()
-
+    print(f'질문 : ', args.query)
+    query = args.query
     system_message = """너는 보고서를 제공하는 챗봇이야.
     나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘.
     이전 대화 내용을 잘 참고해서 일관성 있게 답변해줘.
@@ -87,12 +93,9 @@ def main():
         input_messages_key="input",
         history_messages_key="history",
     )
-
-    print(f'질문 : ', args.query)
-    query = args.query
-
-    # 임베딩 및 검색
-    embedding_vector = embedding_model.encode(query)
+    #Naive Openseach Method
+    store = OpenSearchEmbeddingStore()
+    embedding_vector = embedding_model.embed_query(query)
     results = store.search_similar(index_name="doc_embedding", vector=embedding_vector)
 
     if results is not None:
