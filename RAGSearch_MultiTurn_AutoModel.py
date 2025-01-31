@@ -40,12 +40,9 @@ def initialize_models():
         os.system(hugging_cmd)
 
     embedding_model = SentenceTransformer(f'./embeddingmodel/{model_name}/')
-
-    # LLM 설정 (HuggingFace AutoModel 사용)
     try:
         model = AutoModelForCausalLM.from_pretrained(model_id, cache_dir=model_path)
         tokenizer = AutoTokenizer.from_pretrained(model_id, cache_dir=model_path)
-        # Text Generation Pipeline 생성
         pipe = pipeline(
             "text-generation",
             model=model,
@@ -60,11 +57,23 @@ def initialize_models():
         print(f"Error loading HuggingFace model: {e}")
         sys.exit(1)
 
-    # 프롬프트 템플릿 설정
+    return embedding_model, llm
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-query', help='질문을 해주세요')
+    args = parser.parse_args()
+
+    # 벡터 스토어 초기화
+    store = OpenSearchEmbeddingStore()
+
+    # 모델 초기화
+    embedding_model, llm = initialize_models()
+
     system_message = """너는 보고서를 제공하는 챗봇이야.
-나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘.
-이전 대화 내용을 잘 참고해서 일관성 있게 답변해줘.
-답변은 한국어로 해야 돼."""
+    나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘.
+    이전 대화 내용을 잘 참고해서 일관성 있게 답변해줘.
+    답변은 한국어로 해야 돼."""
     prompt = ChatPromptTemplate.from_messages([
         ("system", system_message),
         MessagesPlaceholder(variable_name="history"),
@@ -78,19 +87,6 @@ def initialize_models():
         input_messages_key="input",
         history_messages_key="history",
     )
-
-    return embedding_model, chain_with_history
-
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('-query', help='질문을 해주세요')
-    args = parser.parse_args()
-
-    # 벡터 스토어 초기화
-    store = OpenSearchEmbeddingStore()
-
-    # 모델 초기화
-    embedding_model, chain_with_history = initialize_models()
 
     print(f'질문 : ', args.query)
     query = args.query

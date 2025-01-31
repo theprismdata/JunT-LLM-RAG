@@ -27,20 +27,13 @@ def process_stream_output(stream_output: Iterator[str]) -> None:
 
 def initialize_models():
     """모델과 프롬프트 초기화"""
-    # 임베딩 모델 설정
     model_name = 'KR-SBERT-V40K-klueNLI-augSTS'
     # model_name = 'BAAI/bge-m3'
-    # if not os.path.exists('./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS'):
-    #     hugging_cmd = 'huggingface-cli download snunlp/KR-SBERT-V40K-klueNLI-augSTS --local-dir ./embeddingmodel/KR-SBERT-V40K-klueNLI-augSTS/'
-    #     os.system(hugging_cmd)
-
     if not os.path.exists(f'./embeddingmodel/{model_name}'):
         hugging_cmd = f'huggingface-cli download {model_name} --local-dir ./embeddingmodel/{model_name}'
         os.system(hugging_cmd)
 
     embedding_model = SentenceTransformer(f'./embeddingmodel/{model_name}/')
-
-    # LLM 설정
     try:
         llm = Ollama(
             model="gemma2:2b",
@@ -53,29 +46,7 @@ def initialize_models():
         print("Please make sure the Ollama server is running (ollama serve)")
         sys.exit(1)
 
-    # 프롬프트 템플릿 설정 - MessagesPlaceholder 사용
-    system_message = """너는 보고서를 제공하는 챗봇이야.
-나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘.
-이전 대화 내용을 잘 참고해서 일관성 있게 답변해줘.
-답변은 한국어로 해야 돼."""
-
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", system_message),
-        MessagesPlaceholder(variable_name="history"),
-        ("human", "{input}"),
-        ("system", "Relevant Information: {context}")
-    ])
-
-    # Chain 설정
-    chain = prompt | llm | StrOutputParser()
-    chain_with_history = RunnableWithMessageHistory(
-        chain,
-        lambda session_id: chat_history,
-        input_messages_key="input",
-        history_messages_key="history",
-    )
-
-    return embedding_model, chain_with_history
+    return embedding_model, llm
 
 def main():
     parser = argparse.ArgumentParser()
@@ -86,12 +57,30 @@ def main():
     store = OpenSearchEmbeddingStore()
 
     # 모델 초기화
-    embedding_model, chain_with_history = initialize_models()
+    embedding_model, llm = initialize_models()
 
+    system_message = """너는 보고서를 제공하는 챗봇이야.
+    나의 질문에 대해 Relevant Information을 이용하여 보고서를 작성해줘.
+    이전 대화 내용을 잘 참고해서 일관성 있게 답변해줘.
+    답변은 한국어로 해야 돼."""
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", system_message),
+        MessagesPlaceholder(variable_name="history"),
+        ("human", "{input}"),
+        ("system", "Relevant Information: {context}")
+    ])
+    chain = prompt | llm | StrOutputParser()
+
+    chain_with_history = RunnableWithMessageHistory(
+        chain,
+        lambda session_id: chat_history,
+        input_messages_key="input",
+        history_messages_key="history",
+    )
     print(f'질문 : ', args.query)
     query = args.query
 
-    # 임베딩 및 검색
     embedding_vector = embedding_model.encode(query)
     results = store.search_similar(index_name="doc_embedding", vector=embedding_vector)
 
