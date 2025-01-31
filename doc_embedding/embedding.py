@@ -35,21 +35,23 @@ if __name__ == "__main__":
         rfilename = rlog_fp.readline()
         if not rfilename: break
         rfilename = rfilename.strip()
+        if len(rfilename) == 0: continue
         rlist.append(rfilename)
     rlog_fp.close()
+    print("LOAD HISTORY")
+    print(f"{len(rlist)} files")
 
     meta_path = "../meta_dumps"
     for input_file in pathlib.Path(meta_path).rglob("*.json"):
-        print(input_file)
         if str(input_file) in rlist:
             continue
-
         wlog_fp = open("write.log.txt", 'a')
         with open(input_file, "r", encoding="utf-8") as fp:
             file_info = json.load(fp)
             # print(file_info['origin_path'])
             sourcefile = file_info['origin_path']
             if 'doc_meta' not in file_info:
+                print(f"doc meta missing {input_file}")
                 continue
             doc_meta = file_info['doc_meta']
             for meta_info in doc_meta:
@@ -90,19 +92,6 @@ if __name__ == "__main__":
                         store.store_doc(document)
                 except Exception as e:
                     print(str(e))
-        wlog_fp.write(f"\n{input_file}\n")
+        wlog_fp.write(f"{input_file}\n")
         wlog_fp.close()
-
-
-    # # 데이터를 검색합니다.
-    # query = "AI와 신경망에 대해 알려주세요"
-    # results = store.search_similar(query)
-    #
-    # print("\n검색 결과:")
-    # for hit in results:
-    #     print(f"텍스트: {hit['_source']['content']}")
-    #     print(f"원본 파일: {hit['_source']['source_path']}")
-    #     print(f"위치 페이지: {hit['_source']['meta']['page']}")
-    #     print(f"위치 줄번호: {hit['_source']['meta']['ln']}")
-    #     print(f"점수: {hit['_score']}")
 
