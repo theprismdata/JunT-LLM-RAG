@@ -132,5 +132,6 @@ class OpenSearchEmbeddingStore:
 
         except Exception as e:
             print(f"Error during vector search: {e}")
+            return None
         return response['hits']['hits']
 
