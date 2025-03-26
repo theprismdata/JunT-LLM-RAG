@@ -9,11 +9,11 @@ python -m vllm.entrypoints.openai.api_server --model meta-llama/Llama-3.2-3B-Ins
 """
 
 """
-yanolja/EEVE-Korean-Instruct-10.8B-v1.0
-python -m vllm.entrypoints.openai.api_server --model yanolja/EEVE-Korean-Instruct-10.8B-v1.0 --host 0.0.0.0 --port 8889 --max-model-len=256
+yanolja/EEVE-Korean-10.8B-v1.0
+python -m vllm.entrypoints.openai.api_server --model yanolja/EEVE-Korean-10.8B-v1.0 --host 0.0.0.0 --port 8889 --max-model-len=256
 """
 model_path = "yanolja"
-model_code = "EEVE-Korean-Instruct-10.8B-v1.0"
+model_code = "EEVE-Korean-10.8B-v1.0"
 
 client = OpenAI(
     api_key=openai_api_key,
@@ -21,5 +21,5 @@ client = OpenAI(
 )
 
 result = client.completions.create(model = f'{model_path}/{model_code}',
-                          prompt = "강남은 어디에 있지?")
+                          prompt = "강남의 맛집을 찾아줘")
 print(result.choices[0].text)
